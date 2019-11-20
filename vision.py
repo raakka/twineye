@@ -1,3 +1,4 @@
+from datetime import datetime
 import cv2
 import numpy as np
 import socket
@@ -8,18 +9,13 @@ import pickle
 
 ############# Defining Variables and Tuning #############
 
-<<<<<<< HEAD
-b5142
-cap1 = cv2.VideoCapture(0)
-cap2 = cv2.VidepCapture(1)
-=======
 ip = 10.13.11.22 # Change this number
 port = 68756 # Change this number too
+CALIBRATE = False
+calibdatastruct = []
+datafile = open('calibrationdata', 'wb')
 
-try
->>>>>>> c31f35f80d049bbed53e7376d39db308acd2d67b
-
-# # # # # # YEET DEEP SPACE # # # # # #
+# # # # # # # # # # # # # # DEEP SPACE # # # # # # # # # #
 #                 ____
 #                /___.`--.____ .--. ____.--(
 #                       .'_.- (    ) -._'.
@@ -64,11 +60,7 @@ def initCapture1():
     print("    done.")
     return cap1
 
-<<<<<<< HEAD
-green_upper_colors = np.array([h, s, v])
-green_lower_colors = np.array([h, s, v])
 
-=======
 # Camera 2 Setup
 def initCapture2():
     print("Initializing Video Capture Two...")
@@ -85,8 +77,8 @@ def initCapture2():
     cap2.set(cv2.CAP_PROP_AUTOFOCUS, 0)# Disable autofocus
     print("    done.")
     return cap2
->>>>>>> c31f35f80d049bbed53e7376d39db308acd2d67b
 
+#HSV filters for green (input is an image)
 def greenprocess(image):
     hsvconv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     
@@ -98,7 +90,8 @@ def greenprocess(image):
     ret, threshgreen = cv2.thresold(mask_green, 40, 255, 0)
     _, contgreen, _ = cv2.findContours(threshgreen, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     return contgreen, outputorange
-    
+
+#HSV filters for orange ball (input is an image)
 def orangeprocess(image):
     hsvconv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     
@@ -111,12 +104,14 @@ def orangeprocess(image):
     _, contorange, _ = cv2.findContours(threshorange, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     return contorange, outputorange
 
+#does it divide by zero
 def divbyzero(coord1, coord2):
     if (coord1 - coord2) == 0 or (coord2 - coord1) == 0:
         return True
     else:
         return False
-    
+
+#finds center of 2 green contours
 def greencenter(contour):
     areaArray = []
     count = 1
@@ -147,6 +142,7 @@ def greencenter(contour):
         
     return xc, yc 
     """
+
 def xdiff(xuno, xdos):
     diff = None
     if xuno - xdos > 0:
@@ -161,27 +157,21 @@ def zcalc(diff, fs):
     else:
         z = (22 * fs) / diff
     return z
-        
+
+#fix to get angle too...
 def distancenangle(z, offset):
     if z == none:
         dist = None
     else:
         dist == math.sqrt(math.pow(z, 2) + math.pow(offset, 2))
     return dist
-    
-# This function sends Data out via UDP
-# At the moment it isn't functional so the ports and stuff still need some screwing around with
-def send(data, port=50000, addr='239.192.1.100'):
-    """send(data[, port[, addr]]) - multicasts a UDP datagram."""
-    # Create the socket
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    # Make the socket multicast-aware, and set TTL.
-    s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 20) # Change TTL (=20) to suit
-    # Send the data
-    s.sendto(data, (addr, port))
+
+#listens for signal from RIO that says to calibrate (change CALIBRATE = True)
+def listen():
+    print("this does nothing rn")
             
 # Not functions...
-green_upper = np.array([85, 200, 200] np.uint8)
+green_upper = np.array([85, 200, 200], np.uint8)
 green_lower = np.array([75, 120, 120], np.uint8)
 orange_upper = np.array([5, 38, 255], np.uint8)
 orange_lower = np.array([18, 20, 180], np.uint8)
@@ -194,11 +184,9 @@ cap2 = initCapture2()
 
 #this is a really shitty way to do this, someone help fix pls
 
-# This section calibrates if the user specifies / presses c on the keyboard
-runcalibrate = input("press C to calibrate")
-
-# Checks for C pressed
-if (runcalibrate == 'c' or runcalibrate == 'C'):
+# This section calibrates if signal from rio
+# Checks for UDP signal from RIO that says to calibrate
+if (CALIBRATE == True):
     stopcalib = true
 else:
     stopcalib = false
@@ -228,7 +216,16 @@ while (stopcalib == false):
             testz = (22 * fsnew) / (camcoord1 - camcoord2)
             offsetnew = ((camcoord1 * testz) / fsnew) - 11
             print("This should equal 24 " + str(testz))
-            
+
+            #adds data to a single list to make it less of a pain
+            calibdatastruct.append(fsnew)
+            calibdatastruct.append(offsetnew)
+
+            #Yo dawg I heard you like pickles... (saving my variables in datafile)
+            pickle.dump(calibdatastruct, datafile)
+            datafile.close()
+
+            """
             with open('offsetdata.txt') as a:
                 newTextoffset=a.read().replace(lastoffset, str(offsetnew)) # Replaces the previous calibration data
             with open('offsetdata.txt', "w") as a:
@@ -238,6 +235,7 @@ while (stopcalib == false):
                     newTextfs=b.read().replace(lastfs, str(fsnew))
             with open('fsdata.txt', "w") as b:
                     b.write(newTextfs)
+            """
                     
             print("Calibration Complete")
             stopcalib = true
@@ -245,6 +243,16 @@ while (stopcalib == false):
             stopcalib = false 
 
 ############################## Detection Loop ####################################
+
+#grabbing the pickles...
+datafile = open('calibrationdata', 'rb')
+calibdata = pickle.load(datafile)
+datafile.close()
+
+calibdata[0] = savedfs
+calibdata[1] = savedoffset
+
+print(savedoffset)
 
 while True:
     ret, img1 = cap1
@@ -254,11 +262,14 @@ while True:
     green2conts, output2green = greenprocess(img2)
     orange1conts, output1orange = orangeprocess(img1)
     orange2conts, output2orange = orangeprocess(img2)
-    
+
+    #are there more than 2 tape targets?
     if len(green1conts >= 2 and green2conts >= 2):
         greenx1, greeny1 = greencenter(green1conts)
         greenx2, greeny2 = greencenter(green2conts)
-        
+
+
+    # is there one ball?
     if len(orange1conts != 0):
         o1 = max(orange1conts, key = cv2.contourArea)
         orangex1, orangey1, orangew1, orangeh1 = cv2.boundingRectangle(o1)
@@ -282,10 +293,8 @@ while True:
     orangedist, orangeangle = distancenangle(orangez, savedoffset)
     greendist, greenangle = distancenangle(greenz, savedoffset)
     
-    send(str(greendist).encode, port, ip) #the ip should be fixed but the port changes, any ideas how to stop it (keep fixed port number???)
-    
     k = cv2.waitkey(30) & 0xff
-    if k = 27:
+    if k == 27:
         break
         
 cap1.release()
