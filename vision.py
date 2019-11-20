@@ -8,16 +8,16 @@ import pickle
 
 ############# Defining Variables and Tuning #############
 
-<<<<<<< HEAD
-b5142
+green_upper = np.array([85, 200, 200], np.uint8)
+green_lower = np.array([75, 120, 120], np.uint8)
+orange_upper = np.array([5, 38, 255], np.uint8)
+orange_lower = np.array([18, 20, 180], np.uint8)
+
 cap1 = cv2.VideoCapture(0)
 cap2 = cv2.VidepCapture(1)
-=======
+
 ip = 10.13.11.22 # Change this number
 port = 68756 # Change this number too
-
-try
->>>>>>> c31f35f80d049bbed53e7376d39db308acd2d67b
 
 # # # # # # YEET DEEP SPACE # # # # # #
 #                 ____
@@ -64,11 +64,6 @@ def initCapture1():
     print("    done.")
     return cap1
 
-<<<<<<< HEAD
-green_upper_colors = np.array([h, s, v])
-green_lower_colors = np.array([h, s, v])
-
-=======
 # Camera 2 Setup
 def initCapture2():
     print("Initializing Video Capture Two...")
@@ -85,7 +80,7 @@ def initCapture2():
     cap2.set(cv2.CAP_PROP_AUTOFOCUS, 0)# Disable autofocus
     print("    done.")
     return cap2
->>>>>>> c31f35f80d049bbed53e7376d39db308acd2d67b
+
 
 def greenprocess(image):
     hsvconv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
@@ -181,10 +176,7 @@ def send(data, port=50000, addr='239.192.1.100'):
     s.sendto(data, (addr, port))
             
 # Not functions...
-green_upper = np.array([85, 200, 200] np.uint8)
-green_lower = np.array([75, 120, 120], np.uint8)
-orange_upper = np.array([5, 38, 255], np.uint8)
-orange_lower = np.array([18, 20, 180], np.uint8)
+
 
 global cap1
 global cap2
@@ -285,7 +277,7 @@ while True:
     send(str(greendist).encode, port, ip) #the ip should be fixed but the port changes, any ideas how to stop it (keep fixed port number???)
     
     k = cv2.waitkey(30) & 0xff
-    if k = 27:
+    if k == 27:
         break
         
 cap1.release()
