@@ -14,8 +14,9 @@ port = 1311  # Change this number too
 CALIBRATE = False
 stopcalib = True
 calibdatastruct = []
-datafile = open('calibrationdata.pkl', 'wb')
-
+datafile = open("calibrationdata.pkl", "wb")
+calibrationtargetdist = 36 #inches
+distbetweencams = 36 #inches
 
 # # # # # # # # # # # # # # DEEP SPACE # # # # # # # # # #
 #                 ____
@@ -59,6 +60,7 @@ def initCapture1():
     exposure = cap1.get(cv2.CAP_PROP_EXPOSURE)
     cap1.set(cv2.CAP_PROP_EXPOSURE, exposure)  # Disable auto exposure & white balance
     cap1.set(cv2.CAP_PROP_AUTOFOCUS, 0)  # Disable autofocus
+    cap1.set(cv2.CAP_PROP_BUFFERSIZE, 3) # Small buffersize, helps latency
     print("    done.")
     return cap1
 
@@ -77,6 +79,7 @@ def initCapture2():
     exposure = cap2.get(cv2.CAP_PROP_EXPOSURE)
     cap2.set(cv2.CAP_PROP_EXPOSURE, exposure)  # Disable auto exposure & white balance
     cap2.set(cv2.CAP_PROP_AUTOFOCUS, 0)  # Disable autofocus
+    cap2.set(cv2.CAP_PROP_BUFFERSIZE, 3)
     print("    done.")
     return cap2
 
@@ -156,38 +159,47 @@ def greencenter(contours):
 
 
 def xdiff(xuno, xdos):
-    diff = None
-    if xuno - xdos > 0:
-        diff = (xuno - xdos)
+    if xuno != None or xdos != None:
+        if xuno - xdos > 0:
+            diff = (xuno - xdos)
+            return diff
 
-    if xdos - xuno > 0:
-        diff = (xdos - xuno)
+        if xdos - xuno > 0:
+            diff = (xdos - xuno)
+            return diff
 
+    else:
+        diff = None
+        return diff
 
 def zcalc(diff, fs):
     if diff == 0 or diff == None:
         z = None
     else:
-        z = (22 * fs) / diff
+        z = (distbetweencams * fs) / diff
     return z
 
 
 # FIXED #fix to get angle too...
 def distancenangle(z, offset):
     if z == None:
-        dist = None
         angle = None
     else:
-        dist = math.sqrt(math.pow(z, 2) + math.pow(offset, 2))
-        angle = math.atan(offset / z)
-        angle = math.degrees(angle)
-    return dist, angle
+        angle = math.degrees(math.atan(offset / z))
+    return z, angle
+
+def calcoffset(x2, z,):
+    if x2 != None or z != None:
+        offset = ((x2*z)/savedfs)-(distbetweencams/2)
+        return offset
+    else:
+        offset = None
+        return offset
 
 
 # listens for signal from RIO that says to calibrate (change CALIBRATE = True)
 def listen():
     print("this does nothing rn")
-
 
 # Not functions...
 # USE THE TUNER TO ADJUST FOR THESE!!!!
@@ -237,14 +249,11 @@ while (stopcalib == False):
 
         # Stereo Calibration
         if (divbyzero(camcoord2, camcoord1) == False):
-            fsnew = ((24 * (camcoord1 - camcoord2)) / (22))
-            testz = (22 * fsnew) / (camcoord1 - camcoord2)
-            offsetnew = ((camcoord1 * testz) / fsnew) - 11
-            print("This should equal 24 " + str(testz))
+            fsnew = (calibrationtargetdist*(camcoord1-camcoord2))/distbetweencams
+            print(fsnew)
 
             # adds data to a single list to make it less of a pain
             calibdatastruct.append(fsnew)
-            calibdatastruct.append(offsetnew)
 
             # Yo dawg I heard you like pickles... (saving my variables in datafile)
             pickle.dump(calibdatastruct, datafile)
@@ -264,19 +273,23 @@ while (stopcalib == False):
 
             print("Calibration Complete")
             stopcalib = True
-        else:
-            stopcalib = False
 
         ############################## Detection Loop ####################################
 
 # grabbing the pickles...
-datafile = open('calibrationdata.pkl', 'rb')
-calibdata = pickle.load(datafile)
-datafile.close()
+try:
+    with open("calibrationdata.pkl", "rb") as datafile:
+        saveddata = pickle.load(datafile)
+        savedfs = saveddata[0]
+except EOFError:
+    savedfs = 2.5
+    print("using default fs value (2.5)")
 
-savedfs = calibdata[0]
-savedoffset = calibdata[1]
-print(savedoffset)
+#datafile = open("calibrationdata.pkl", "rb")
+#calibdata = pickle.load(datafile)
+#datafile.close()
+
+print("last focal value was " + str(savedfs))
 
 while True:
     ret, img1 = cap1.read()
@@ -288,22 +301,33 @@ while True:
     orange2conts, output2orange = orangeprocess(img2)
 
     # are there more than 2 tape targets?
-    if len(green1conts >= 2 and green2conts >= 2):
+    if len(green1conts) >= 2 and len(green2conts) >= 2:
         greenx1, greeny1 = greencenter(green1conts)
         greenx2, greeny2 = greencenter(green2conts)
+    else:
+        greenx1 = None
+        greeny1 = None
+        greenx2 = None
+        greeny2 = None
 
     # is there one ball?
-    if len(orange1conts != 0):
+    if len(orange1conts) != 0:
         o1 = max(orange1conts, key=cv2.contourArea)
         orangex1, orangey1, orangew1, orangeh1 = cv2.boundingRectangle(o1)
     else:
-        orangex1, orangey1, orangew1, orangeh1 = None
+        orangex1 = None
+        orangey1 = None
+        orangew1 = None
+        orangeh1 = None
 
-    if len(orange2conts != 0):
+    if len(orange2conts) != 0:
         o2 = max(orange2conts, key=cv2.contourArea)
         orangex2, orangey2, orangew2, orangeh2 = cv2.boundingRectangle(o2)
     else:
-        orangex2, orangey2, orangew2, orangeh2 = None
+        orangex2 = None
+        orangey2 = None
+        orangew2 = None
+        orangeh2 = None
 
     ############################## Stereo Calculations #################################
 
@@ -313,12 +337,19 @@ while True:
     orangez = zcalc(orangediff, savedfs)
     greenz = zcalc(greendiff, savedfs)
 
-    orangedist, orangeangle = distancenangle(orangez, savedoffset)
-    greendist, greenangle = distancenangle(greenz, savedoffset)
+    orangeoffset = calcoffset(orangex2, orangez)
+    greenoffset = calcoffset(greenx2, greenz)
 
+    orangedist, orangeangle = distancenangle(orangez, orangeoffset)
+    greendist, greenangle = distancenangle(greenz, greenoffset)
+
+    print(orangez)
     ############################## UDP Stuff ###########################################
 
-    k = cv2.waitkey(30) & 0xff
+    cv2.imshow('orange1', output1orange)
+    cv2.imshow('orange2', output2orange)
+
+    k = cv2.waitKey(30) & 0xff
     if k == 27:
         break
 
