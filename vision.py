@@ -94,7 +94,7 @@ def greenprocess(image):
     mask_green = cv2.dilate(mask_green, None, iterations=2)
 
     outputgreen = cv2.bitwise_and(image, image, mask=mask_green)
-    ret, threshgreen = cv2.threshold(mask_green, 40, 255, 0)
+    ret, threshgreen = cv2.threshold(mask_green, 0, 0, 0)
     contgreen, _ = cv2.findContours(threshgreen, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     return contgreen, outputgreen
 
@@ -103,13 +103,13 @@ def greenprocess(image):
 def orangeprocess(image):
 
     blur = cv2.GaussianBlur(image, (11, 11), 0)
-    hsvconv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    mask_orange = cv2.inRange(image, orange_lower, orange_upper)
+    hsvconv = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)
+    mask_orange = cv2.inRange(hsvconv, orange_lower, orange_upper)
     mask_orange = cv2.erode(mask_orange, None, iterations=2)
     mask_orange = cv2.dilate(mask_orange, None, iterations=2)
 
     outputorange = cv2.bitwise_and(image, image, mask=mask_orange)
-    ret, threshorange = cv2.threshold(mask_orange, 40, 255, 0)
+    ret, threshorange = cv2.threshold(mask_orange, 0, 0, 0)
     contorange, _ = cv2.findContours(threshorange, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     return contorange, outputorange
 
@@ -205,8 +205,8 @@ def listen():
 # USE THE TUNER TO ADJUST FOR THESE!!!!
 green_upper = np.array([85, 200, 200], np.uint8)
 green_lower = np.array([75, 120, 120], np.uint8)
-orange_upper = np.array([5, 38, 255], np.uint8)
-orange_lower = np.array([18, 20, 180], np.uint8)
+orange_upper = np.array([115,139,255], np.uint8)
+orange_lower = np.array([90,84,128], np.uint8)
 
 global cap1
 global cap2
@@ -313,7 +313,7 @@ while True:
     # is there one ball?
     if len(orange1conts) != 0:
         o1 = max(orange1conts, key=cv2.contourArea)
-        orangex1, orangey1, orangew1, orangeh1 = cv2.boundingRectangle(o1)
+        orangex1, orangey1, orangew1, orangeh1 = cv2.boundingRect(o1)
     else:
         orangex1 = None
         orangey1 = None
@@ -322,7 +322,7 @@ while True:
 
     if len(orange2conts) != 0:
         o2 = max(orange2conts, key=cv2.contourArea)
-        orangex2, orangey2, orangew2, orangeh2 = cv2.boundingRectangle(o2)
+        orangex2, orangey2, orangew2, orangeh2 = cv2.boundingRect(o2)
     else:
         orangex2 = None
         orangey2 = None
