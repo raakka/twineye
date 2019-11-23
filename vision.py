@@ -94,7 +94,7 @@ def greenprocess(image):
     mask_green = cv2.dilate(mask_green, None, iterations=2)
 
     outputgreen = cv2.bitwise_and(image, image, mask=mask_green)
-    ret, threshgreen = cv2.threshold(mask_green, 0, 0, 0)
+    ret, threshgreen = cv2.threshold(mask_green, 40, 255, 0)
     contgreen, _ = cv2.findContours(threshgreen, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     return contgreen, outputgreen
 
@@ -109,7 +109,7 @@ def orangeprocess(image):
     mask_orange = cv2.dilate(mask_orange, None, iterations=2)
 
     outputorange = cv2.bitwise_and(image, image, mask=mask_orange)
-    ret, threshorange = cv2.threshold(mask_orange, 0, 0, 0)
+    ret, threshorange = cv2.threshold(mask_orange, 40, 255, 0)
     contorange, _ = cv2.findContours(threshorange, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     return contorange, outputorange
 
@@ -311,7 +311,7 @@ while True:
         greeny2 = None
 
     # is there one ball?
-    if len(orange1conts) != 0:
+    if len(orange1conts) > 0:
         o1 = max(orange1conts, key=cv2.contourArea)
         orangex1, orangey1, orangew1, orangeh1 = cv2.boundingRect(o1)
     else:
@@ -320,7 +320,7 @@ while True:
         orangew1 = None
         orangeh1 = None
 
-    if len(orange2conts) != 0:
+    if len(orange2conts) > 0:
         o2 = max(orange2conts, key=cv2.contourArea)
         orangex2, orangey2, orangew2, orangeh2 = cv2.boundingRect(o2)
     else:
@@ -343,7 +343,7 @@ while True:
     orangedist, orangeangle = distancenangle(orangez, orangeoffset)
     greendist, greenangle = distancenangle(greenz, greenoffset)
 
-    print(orangez)
+    print(orangex1)
     ############################## UDP Stuff ###########################################
 
     cv2.imshow('orange1', output1orange)
