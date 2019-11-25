@@ -4,19 +4,37 @@ import numpy as np
 import socket
 import time
 import math
-import array
-import pickle
+
+import json
+import binascii
+import struct
+import sys
 
 ############# Defining Variables and Tuning #############
 
-ip = "10.13.11.22"  # Change this number
-port = 1311  # Change this number too
+
 CALIBRATE = False
 stopcalib = True
 calibdatastruct = []
 datafile = open("calibrationdata.pkl", "wb")
 calibrationtargetdist = 36 #inches
-distbetweencams = 36 #inches
+distbetweencams = 12 #inches
+
+#UDP stuff
+VISION_TARGET = "192.168.0.3"
+VISION_PORT = 1311
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+# vision information (sans struct)
+version = 1
+valid = 0
+ljy = 0
+rjx = 0
+rjy = 0
+rljy = 0           # we will use ints only for vision, send zeros for floats
+rrjx = 0
+rrjy = 0
 
 # # # # # # # # # # # # # # DEEP SPACE # # # # # # # # # #
 #                 ____
@@ -100,18 +118,19 @@ def greenprocess(image):
 
 
 # HSV filters for orange ball (input is an image)
-def orangeprocess(image):
+def orangeprocess(img):
 
-    blur = cv2.GaussianBlur(image, (11, 11), 0)
-    hsvconv = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)
-    mask_orange = cv2.inRange(hsvconv, orange_lower, orange_upper)
-    mask_orange = cv2.erode(mask_orange, None, iterations=2)
-    mask_orange = cv2.dilate(mask_orange, None, iterations=2)
 
-    outputorange = cv2.bitwise_and(image, image, mask=mask_orange)
-    ret, threshorange = cv2.threshold(mask_orange, 40, 255, 0)
-    contorange, _ = cv2.findContours(threshorange, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    return contorange, outputorange
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+    thresh = cv2.inRange(hsv, orange_lower, orange_upper)
+    closing = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(10, 10)))
+    opening = cv2.morphologyEx(closing, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10)))
+
+    contours, hierarchy = cv2.findContours(opening, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+    cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
+
+    return contours, img
 
 
 # does it divide by zero
@@ -141,9 +160,6 @@ def greencenter(contours):
     y1 = y1 + (h1 / 2)
     y2 = y2 + (h2 / 2)
     yc = (y1 + y2) / 2
-
-    return yc
-
     """
     f = 1
     while xc < close and xc > far:
@@ -156,10 +172,34 @@ def greencenter(contours):
 
     return xc, yc 
     """
+    return yc
+
+def savefsandclose(fsnew):
+    file = open("config.json", "w")
+
+    jsonObj = {
+            'values': {
+                'savedfs': str(fsnew)
+            },
+            'camera': {
+                'camdistance': str(distbetweencams)
+            }
+        }
+
+    file.write(u"" + json.dumps(jsonObj))
+    file.close()
+
+def loadfsromFile():
+    try:
+        with open("config.json") as json_data:
+            data = json.load(json_data)
+            return np.array([data["values"]["savedfs"], data["camera"]["camdistance"]], dtype=np.uint8)
+    except IOError as e:
+        return np.array([2.5, 36], dtype=np.uint8)
 
 
 def xdiff(xuno, xdos):
-    if xuno != None or xdos != None:
+    if xuno != None and xdos != None:
         if xuno - xdos > 0:
             diff = (xuno - xdos)
             return diff
@@ -167,7 +207,6 @@ def xdiff(xuno, xdos):
         if xdos - xuno > 0:
             diff = (xdos - xuno)
             return diff
-
     else:
         diff = None
         return diff
@@ -189,7 +228,7 @@ def distancenangle(z, offset):
     return z, angle
 
 def calcoffset(x2, z,):
-    if x2 != None or z != None:
+    if x2 != None and z != None:
         offset = ((x2*z)/savedfs)-(distbetweencams/2)
         return offset
     else:
@@ -200,6 +239,16 @@ def calcoffset(x2, z,):
 # listens for signal from RIO that says to calibrate (change CALIBRATE = True)
 def listen():
     print("this does nothing rn")
+
+def send():
+    try:
+        values = (version, valid, ljy, rjx, rjy, rljy, rrjx, rrjy)
+        packer = struct.Struct('!i i i i i f f f')  # the ! implements network byte order for the payload
+        packed_data = packer.pack(*values)
+        retval = sock.sendto(packed_data, (VISION_TARGET, VISION_PORT))
+        #time.sleep(1)
+    finally:
+        pass
 
 # Not functions...
 # USE THE TUNER TO ADJUST FOR THESE!!!!
@@ -250,15 +299,8 @@ while (stopcalib == False):
         # Stereo Calibration
         if (divbyzero(camcoord2, camcoord1) == False):
             fsnew = (calibrationtargetdist*(camcoord1-camcoord2))/distbetweencams
-            print(fsnew)
-
-            # adds data to a single list to make it less of a pain
-            calibdatastruct.append(fsnew)
-
-            # Yo dawg I heard you like pickles... (saving my variables in datafile)
-            pickle.dump(calibdatastruct, datafile)
-            datafile.close()
-
+            print("fs is... " + str(fsnew))
+            savefsandclose(fsnew)
             """
             with open('offsetdata.txt') as a:
                 newTextoffset=a.read().replace(lastoffset, str(offsetnew)) # Replaces the previous calibration data
@@ -277,82 +319,82 @@ while (stopcalib == False):
         ############################## Detection Loop ####################################
 
 # grabbing the pickles...
-try:
-    with open("calibrationdata.pkl", "rb") as datafile:
-        saveddata = pickle.load(datafile)
-        savedfs = saveddata[0]
-except EOFError:
-    savedfs = 2.5
-    print("using default fs value (2.5)")
+
+
 
 #datafile = open("calibrationdata.pkl", "rb")
 #calibdata = pickle.load(datafile)
 #datafile.close()
 
+calibdatastruct = loadfsromFile()
+savedfs = calibdatastruct[0]
+
 print("last focal value was " + str(savedfs))
+try:
+    while True:
+        ret, img1 = cap1.read()
+        ret, img2 = cap2.read()
 
-while True:
-    ret, img1 = cap1.read()
-    ret, img2 = cap2.read()
+        green1conts, output1green = greenprocess(img1)
+        green2conts, output2green = greenprocess(img2)
+        orange1conts, output1orange = orangeprocess(img1)
+        orange2conts, output2orange = orangeprocess(img2)
 
-    green1conts, output1green = greenprocess(img1)
-    green2conts, output2green = greenprocess(img2)
-    orange1conts, output1orange = orangeprocess(img1)
-    orange2conts, output2orange = orangeprocess(img2)
+        # are there more than 2 tape targets?
+        if len(green1conts) >= 2 and len(green2conts) >= 2:
+            greenx1, greeny1 = greencenter(green1conts)
+            greenx2, greeny2 = greencenter(green2conts)
+        else:
+            greenx1 = None
+            greeny1 = None
+            greenx2 = None
+            greeny2 = None
 
-    # are there more than 2 tape targets?
-    if len(green1conts) >= 2 and len(green2conts) >= 2:
-        greenx1, greeny1 = greencenter(green1conts)
-        greenx2, greeny2 = greencenter(green2conts)
-    else:
-        greenx1 = None
-        greeny1 = None
-        greenx2 = None
-        greeny2 = None
+        # is there one ball?
+        if len(orange1conts) > 0:
+            o1 = max(orange1conts, key=cv2.contourArea)
+            orangex1, orangey1, orangew1, orangeh1 = cv2.boundingRect(o1)
+        else:
+            orangex1 = None
+            orangey1 = None
+            orangew1 = None
+            orangeh1 = None
 
-    # is there one ball?
-    if len(orange1conts) > 0:
-        o1 = max(orange1conts, key=cv2.contourArea)
-        orangex1, orangey1, orangew1, orangeh1 = cv2.boundingRect(o1)
-    else:
-        orangex1 = None
-        orangey1 = None
-        orangew1 = None
-        orangeh1 = None
+        if len(orange2conts) > 0:
+            o2 = max(orange2conts, key=cv2.contourArea)
+            orangex2, orangey2, orangew2, orangeh2 = cv2.boundingRect(o2)
+        else:
+            orangex2 = None
+            orangey2 = None
+            orangew2 = None
+            orangeh2 = None
 
-    if len(orange2conts) > 0:
-        o2 = max(orange2conts, key=cv2.contourArea)
-        orangex2, orangey2, orangew2, orangeh2 = cv2.boundingRect(o2)
-    else:
-        orangex2 = None
-        orangey2 = None
-        orangew2 = None
-        orangeh2 = None
+        ############################## Stereo Calculations #################################
 
-    ############################## Stereo Calculations #################################
+        orangediff = xdiff(orangex1, orangex2)
+        greendiff = xdiff(greenx1, greenx2)
 
-    orangediff = xdiff(orangex1, orangex2)
-    greendiff = xdiff(greenx1, greenx2)
+        orangez = zcalc(orangediff, savedfs)
+        greenz = zcalc(greendiff, savedfs)
 
-    orangez = zcalc(orangediff, savedfs)
-    greenz = zcalc(greendiff, savedfs)
+        orangeoffset = calcoffset(orangex2, orangez)
+        greenoffset = calcoffset(greenx2, greenz)
 
-    orangeoffset = calcoffset(orangex2, orangez)
-    greenoffset = calcoffset(greenx2, greenz)
+        orangedist, orangeangle = distancenangle(orangez, orangeoffset)
+        greendist, greenangle = distancenangle(greenz, greenoffset)
 
-    orangedist, orangeangle = distancenangle(orangez, orangeoffset)
-    greendist, greenangle = distancenangle(greenz, greenoffset)
+        print(orangedist)
+        ############################## UDP Stuff ###########################################
 
-    print(orangex1)
-    ############################## UDP Stuff ###########################################
+        send()
+        cv2.imshow('orange1', output1orange)
+        cv2.imshow('orange2', output2orange)
 
-    cv2.imshow('orange1', output1orange)
-    cv2.imshow('orange2', output2orange)
-
-    k = cv2.waitKey(30) & 0xff
-    if k == 27:
-        break
-
+        k = cv2.waitKey(30) & 0xff
+        if k == 27:
+            break
+finally:
+    sock.close()
 cap1.release()
 cap2.release()
 cv2.destroyAllWindows
