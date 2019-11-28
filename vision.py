@@ -4,7 +4,6 @@ import numpy as np
 import socket
 import time
 import math
-
 import json
 import binascii
 import struct
@@ -76,7 +75,7 @@ def initCapture1():
     cap1.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     global exposure
     exposure = cap1.get(cv2.CAP_PROP_EXPOSURE)
-    cap1.set(cv2.CAP_PROP_EXPOSURE, exposure)  # Disable auto exposure & white balance
+    cap1.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # Disable auto exposure & white balance
     cap1.set(cv2.CAP_PROP_AUTOFOCUS, 0)  # Disable autofocus
     cap1.set(cv2.CAP_PROP_BUFFERSIZE, 3) # Small buffersize, helps latency
     print("    done.")
@@ -94,8 +93,8 @@ def initCapture2():
     cap2.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap2.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     global exposure
-    exposure = cap2.get(cv2.CAP_PROP_EXPOSURE)
-    cap2.set(cv2.CAP_PROP_EXPOSURE, exposure)  # Disable auto exposure & white balance
+    #exposure = cap2.get(cv2.CAP_PROP_EXPOSURE)
+    cap2.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # Disable auto exposure & white balance
     cap2.set(cv2.CAP_PROP_AUTOFOCUS, 0)  # Disable autofocus
     cap2.set(cv2.CAP_PROP_BUFFERSIZE, 3)
     print("    done.")
@@ -103,26 +102,23 @@ def initCapture2():
 
 
 # HSV filters for green (input is an image)
-def greenprocess(image):
+def greenprocess(img):
 
-    blur = cv2.GaussianBlur(image, (11, 11), 0)
-    hsvconv = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)
-    mask_green = cv2.inRange(hsvconv, green_lower, green_upper)
-    mask_green = cv2.erode(mask_green, None, iterations=2)
-    mask_green = cv2.dilate(mask_green, None, iterations=2)
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    thresh = cv2.inRange(hsv, green_lower, green_upper)
+    closing = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10)))
+    opening = cv2.morphologyEx(closing, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10)))
 
-    outputgreen = cv2.bitwise_and(image, image, mask=mask_green)
-    ret, threshgreen = cv2.threshold(mask_green, 40, 255, 0)
-    contgreen, _ = cv2.findContours(threshgreen, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    return contgreen, outputgreen
+    contours, hierarchy = cv2.findContours(opening, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+
+    cv2.drawContours(img, contours, -1, (0, 255, 0), 3)
+    return contours, img
 
 
 # HSV filters for orange ball (input is an image)
 def orangeprocess(img):
 
-
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-
     thresh = cv2.inRange(hsv, orange_lower, orange_upper)
     closing = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(10, 10)))
     opening = cv2.morphologyEx(closing, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10)))
@@ -383,18 +379,31 @@ try:
         orangedist, orangeangle = distancenangle(orangez, orangeoffset)
         greendist, greenangle = distancenangle(greenz, greenoffset)
 
-        print(orangedist)
+        print(exposure)
         ############################## UDP Stuff ###########################################
 
         send()
         cv2.imshow('orange1', output1orange)
         cv2.imshow('orange2', output2orange)
 
-        k = cv2.waitKey(30) & 0xff
+        k = cv2.waitKey(10) & 255
         if k == 27:
             break
+        # W key: Increment exposure.
+        elif k == ord('w'):
+            exposure += 1
+        # S key: Decrement exposure.
+        elif k == ord('s'):
+            exposure -= 1
+
+        if exposure < -7:
+            exposure = -7
+        elif exposure > -1:
+            exposure = -1
+
 finally:
     sock.close()
+
 cap1.release()
 cap2.release()
 cv2.destroyAllWindows
