@@ -147,7 +147,7 @@ try:
         
         try:
 		    values = (version, valid, angle, distance, placeholder1, placeholder2, placeholder3, placeholder4)
-		    packer = struct.Struct('!i i i i i f f f')   # the ! implements network byte order for the payload
+		    packer = struct.Struct('!f f f f f f f f')   # the ! implements network byte order for the payload
 		    packed_data = packer.pack(*values)
 		    retval = sock.sendto(packed_data, (VISION_TARGET, VISION_PORT))
 		    #time.sleep(1)
