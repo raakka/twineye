@@ -12,20 +12,20 @@ import sys
 ############# Defining Variables and Tuning #############
 
 #UDP stuff
-VISION_TARGET = "192.168.0.3"
+VISION_TARGET = "192.168.0.2"
 VISION_PORT = 1311
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 # vision information (sans struct)
 version = 1
-valid = 0
-ljy = 0
-rjx = 0
-rjy = 0
-rljy = 0           # we will use ints only for vision, send zeros for floats
-rrjx = 0
-rrjy = 0
+valid = 1
+angle = 0
+distance = 0
+placeholder1 = 0
+placeholder2 = 0           # we will use ints only for vision ( -32767 to 32767 ), send zeros for floats
+placeholder3 = 0
+placeholder4 = 0
 
 # # # # # # # # # # # # # # DEEP SPACE # # # # # # # # # #
 #                 ____
@@ -144,9 +144,15 @@ try:
         cx = greencenter(conts)
         rotation = angle(cx)
         print(exposure)
+        
+        try:
+		    values = (version, valid, angle, distance, placeholder1, placeholder2, placeholder3, placeholder4)
+		    packer = struct.Struct('!i i i i i f f f')   # the ! implements network byte order for the payload
+		    packed_data = packer.pack(*values)
+		    retval = sock.sendto(packed_data, (VISION_TARGET, VISION_PORT))
+		    #time.sleep(1)
+            
 ############################## UDP Stuff ###########################################
-
-        send()
         cv2.imshow('output', output)
         
         k = cv2.waitKey(10) & 255
