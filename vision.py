@@ -142,7 +142,7 @@ try:
         
 ############################## math voodoo #################################
         cx = greencenter(conts)
-        rotation = angle(cx)
+        angle = angle(cx)
         print(exposure)
         
         try:
