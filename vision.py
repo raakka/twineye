@@ -13,7 +13,7 @@ import sys
 
 #UDP stuff
 VISION_TARGET = "192.168.0.2"
-VISION_PORT = 1311
+VISION_PORT = 5800
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
