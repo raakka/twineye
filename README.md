@@ -1,5 +1,5 @@
 # Project Twineye
-Kell Robotics 2019 Stereo Vision Code
+Stereo Computer Vision Code
 
 explanation in paper by Dr.Gary Lewis
 
@@ -9,5 +9,5 @@ opencv 3+
 numpy
 
 # Tuner
-modded 254 HSV color tuner for better HSV filters
+modded HSV color tuner for better HSV filters
 
